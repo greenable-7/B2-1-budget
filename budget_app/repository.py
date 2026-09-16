@@ -6,9 +6,11 @@ from .model import Transaction
 
 # TODO: transactions.jsonl의 파일 입출력을 담당한다.
 class JsonlRepository:
-    # TODO: 저장 경로를 보관하고 파일이 없으면 초기화한다.
     def __init__(self, data_dir: Path) -> None:
-        pass
+        self.data_dir = data_dir
+        self.path = data_dir / "transactions.jsonl"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.path.touch(exist_ok=True)
 
     # TODO: yield 기반 제너레이터로 거래를 한 건씩 읽는다.
     def iter_transactions(self) -> Iterator[Transaction]:
@@ -27,7 +29,10 @@ class JsonlRepository:
 class CategoryStore:
     # TODO: 저장 경로를 보관하고 파일이 없으면 초기화한다.
     def __init__(self, data_dir: Path) -> None:
-        pass
+        self.data_dir = data_dir
+        self.path = data_dir / "categories.jsonl"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.path.touch(exist_ok=True)
 
     # TODO: 등록된 카테고리를 읽는다.
     def read_categories(self) -> list[str]:
