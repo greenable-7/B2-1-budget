@@ -1,1 +1,3 @@
-print("B2-1 용돈기입장 시작")
+from .cli import run
+if __name__ == "__main__":
+    run()
