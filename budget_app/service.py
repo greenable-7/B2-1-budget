@@ -9,7 +9,9 @@ from .repository import BudgetStore, CategoryStore, JsonlRepository
 class BudgetService:
     # TODO: 거래·카테고리·예산 저장소를 연결한다.
     def __init__(self, repository: JsonlRepository, categories: CategoryStore, budgets: BudgetStore) -> None:
-        pass
+        self.repository = repository
+        self.categories = categories
+        self.budgets = budgets
 
     # TODO: 날짜·양수 정수 금액·타입·등록된 카테고리를 검증한다.
     def validate_transaction(self, transaction: Transaction) -> None:
@@ -41,15 +43,35 @@ class BudgetService:
 
     # TODO: 빈 이름과 중복을 검증해 카테고리를 등록한다.
     def add_category(self, name: str) -> None:
-        pass
+        name = name.strip()
+        if not name:
+            raise ValueError("카테고리 이름을 입력해 주세요.")
+
+        categories = self.categories.read_categories()
+        if name in categories:
+            raise ValueError("이미 등록된 카테고리입니다.")
+        
+        categories.append(name)
+        self.categories.save_categories(categories)
 
     # TODO: 등록된 카테고리 목록을 제공한다.
     def list_categories(self) -> list[str]:
-        pass
+        return self.categories.read_categories()
 
     # TODO: 사용 중인 카테고리의 삭제를 막고 없는 이름을 처리한다.
     def remove_category(self, name: str) -> None:
-        pass
+        name = name.strip()
+        if not name:
+            raise ValueError("삭제할 카테고리 이름을 입력해 주세요")
+
+        categories = self.categories.read_categories()
+        if name not in categories:
+            raise ValueError("등록되지 않은 카테고리입니다")
+
+        categories.remove(name)
+        self.categories.save_categories(categories)
+
+
 
     # TODO: id와 수정 필드를 검증하고 안전하게 재작성하며 없는 id를 처리한다.
     def update_transaction(self, transaction_id: str, changes: dict[str, object]) -> None:

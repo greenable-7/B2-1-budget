@@ -1,3 +1,4 @@
+import json
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
@@ -36,11 +37,17 @@ class CategoryStore:
 
     # TODO: 등록된 카테고리를 읽는다.
     def read_categories(self) -> list[str]:
-        pass
+        categories = []
+        with self.path.open("r", encoding="utf-8") as file:
+            for line in file:
+                categories.append(json.loads(line))
+        return categories
 
     # TODO: 카테고리 목록을 안전하게 저장한다.
     def save_categories(self, categories: list[str]) -> None:
-        pass
+        with self.path.open("w", encoding="utf-8") as file:
+            for category in categories:
+                file.write(json.dumps(category, ensure_ascii=False) + "\n")
 
 
 # TODO: budgets.jsonl의 파일 입출력을 담당한다.
