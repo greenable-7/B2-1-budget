@@ -15,7 +15,13 @@ class BudgetService:
 
     # TODO: 날짜·양수 정수 금액·타입·등록된 카테고리를 검증한다.
     def validate_transaction(self, transaction: Transaction) -> None:
-        pass
+        if transaction.transaction_type not in {"income","expense"}:
+            raise ValueError("거래 타입은 income 또는 expense여야 합니다.")
+        if transaction.amount <= 0:
+            raise ValueError("금액은 0보다 큰 정수여야 합니다.")
+        categories = self.categories.read_categories()
+        if transaction.category not in categories:
+            pass
 
     # TODO: 거래를 검증하고 고유 id를 부여해 저장한다.
     def add_transaction(self, transaction: Transaction) -> str:

@@ -15,11 +15,40 @@ class JsonlRepository:
 
     # TODO: yield 기반 제너레이터로 거래를 한 건씩 읽는다.
     def iter_transactions(self) -> Iterator[Transaction]:
-        pass
+        with self.path.open("r", encoding="utf-8") as file:
+            for line in file:
+                record = json.loads(line)
+                transaction = Transaction(
+                    record["id"],
+                    record["type"],
+                    record["date"],
+                    record["amount"],
+                    record["category"],
+                    record["memo"],
+                    record["tags"],
+                )
+                yield transaction
+
+
 
     # TODO: 거래 한 건을 JSONL로 추가한다.
     def append_transaction(self, transaction: Transaction) -> None:
-        pass
+        record = {
+            "id": transaction.transaction_id,
+            "type": transaction.transaction_type,
+            "date": transaction.date,
+            "amount": transaction.amount,
+            "category": transaction.category,
+            "memo": transaction.memo,
+            "tags":  transaction.tags,
+        }
+        yield transaction
+        line = json.dumps(record,ensure_ascii=False)
+        with self.path.open("a",encoding="utf-8") as file:
+            file.write(line + "\n")
+
+
+
 
     # TODO: update/delete 결과를 임시 파일에 쓰고 원자적으로 교체한다.
     def rewrite_transactions(self, transactions: Iterable[Transaction]) -> None:

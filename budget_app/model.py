@@ -7,7 +7,7 @@ class Transaction:
         self.amount = amount
         self.category = category
         self.memo = memo
-        self.tag = tags or []
+        self.tags = tags or []
 
 
  
