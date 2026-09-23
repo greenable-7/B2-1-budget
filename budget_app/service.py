@@ -1,35 +1,53 @@
+import heapq
 from collections.abc import Iterator
+from datetime import date
 from pathlib import Path
+import uuid
 
 from .model import Transaction
 from .repository import BudgetStore, CategoryStore, JsonlRepository
 
 
-# TODO: 입력 검증과 가계부 비즈니스 규칙을 담당한다.
 class BudgetService:
-    # TODO: 거래·카테고리·예산 저장소를 연결한다.
     def __init__(self, repository: JsonlRepository, categories: CategoryStore, budgets: BudgetStore) -> None:
         self.repository = repository
         self.categories = categories
         self.budgets = budgets
 
-    # TODO: 날짜·양수 정수 금액·타입·등록된 카테고리를 검증한다.
     def validate_transaction(self, transaction: Transaction) -> None:
-        if transaction.transaction_type not in {"income","expense"}:
+        try:
+            parsed_date = date.fromisoformat(transaction.date)
+            if parsed_date.isoformat() != transaction.date:
+                raise ValueError
+        except ValueError as exc:
+            raise ValueError("날짜는 실제 존재하는 YYYY-MM-DD 형식이어야 합니다.") from exc
+
+        if transaction.transaction_type not in {"income", "expense"}:
             raise ValueError("거래 타입은 income 또는 expense여야 합니다.")
-        if transaction.amount <= 0:
+        if type(transaction.amount) is not int or transaction.amount <= 0:
             raise ValueError("금액은 0보다 큰 정수여야 합니다.")
         categories = self.categories.read_categories()
         if transaction.category not in categories:
-            pass
+            raise ValueError("등록되지 않은 카테고리입니다. 먼저 category add로 등록해 주세요.")
 
-    # TODO: 거래를 검증하고 고유 id를 부여해 저장한다.
     def add_transaction(self, transaction: Transaction) -> str:
-        pass
+        self.validate_transaction(transaction)
+        transaction.transaction_id = f"TX-{uuid.uuid4().hex}"
+        self.repository.append_transaction(transaction)
+        return transaction.transaction_id
 
-    # TODO: 스트리밍을 유지하며 최신순으로 기본 20건을 조회한다.
     def list_transactions(self, limit: int = 20) -> Iterator[Transaction]:
-        pass
+        if type(limit) is not int or limit <= 0:
+            raise ValueError("--limit은 0보다 큰 정수여야 합니다. 예: --limit 20")
+
+        # 파일 전체를 목록에 담지 않고, 필요한 최신 N건만 메모리에 유지한다.
+        latest_transactions = heapq.nlargest(
+            limit,
+            enumerate(self.repository.iter_transactions()),
+            key=lambda item: (item[1].date, item[0]),
+        )
+        for _, transaction in latest_transactions:
+            yield transaction
 
     # TODO: 기간·카테고리·타입·메모·태그로 스트리밍 검색하고 최신순으로 제공한다.
     def search_transactions(self, start_date: str | None = None, end_date: str | None = None, category: str | None = None, transaction_type: str | None = None, query: str | None = None, tag: str | None = None) -> Iterator[Transaction]:
@@ -47,7 +65,6 @@ class BudgetService:
     def get_budget(self, month: str) -> int | None:
         pass
 
-    # TODO: 빈 이름과 중복을 검증해 카테고리를 등록한다.
     def add_category(self, name: str) -> None:
         name = name.strip()
         if not name:
@@ -56,15 +73,13 @@ class BudgetService:
         categories = self.categories.read_categories()
         if name in categories:
             raise ValueError("이미 등록된 카테고리입니다.")
-        
+
         categories.append(name)
         self.categories.save_categories(categories)
 
-    # TODO: 등록된 카테고리 목록을 제공한다.
     def list_categories(self) -> list[str]:
         return self.categories.read_categories()
 
-    # TODO: 사용 중인 카테고리의 삭제를 막고 없는 이름을 처리한다.
     def remove_category(self, name: str) -> None:
         name = name.strip()
         if not name:
@@ -73,6 +88,9 @@ class BudgetService:
         categories = self.categories.read_categories()
         if name not in categories:
             raise ValueError("등록되지 않은 카테고리입니다")
+
+        if any(transaction.category == name for transaction in self.repository.iter_transactions()):
+            raise ValueError("거래에서 사용 중인 카테고리는 삭제할 수 없습니다.")
 
         categories.remove(name)
         self.categories.save_categories(categories)

@@ -1,10 +1,19 @@
 from collections.abc import Callable
+from functools import wraps
+import sys
 from typing import ParamSpec, TypeVar
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
 
-# TODO: CLI run에 한 번만 적용할 공통 오류 처리 데코레이터를 구현한다.
 def handle_cli_errors(func: Callable[P, R]) -> Callable[P, R]:
-    pass
+    @wraps(func)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            return func(*args, **kwargs)
+        except (ValueError, OSError, EOFError) as exc:
+            print(f"오류: {exc}", file=sys.stderr)
+            raise SystemExit(1) from None
+
+    return wrapper
