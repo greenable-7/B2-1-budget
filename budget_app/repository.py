@@ -74,16 +74,25 @@ class CategoryStore:
                 file.write(json.dumps({"name": category}, ensure_ascii=False) + "\n")
 
 
-# TODO: budgets.jsonl의 파일 입출력을 담당한다.
 class BudgetStore:
-    # TODO: 저장 경로를 보관하고 파일이 없으면 초기화한다.
     def __init__(self, data_dir: Path) -> None:
-        pass
+        self.data_dir = data_dir
+        self.path = data_dir / "budgets.jsonl"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.path.touch(exist_ok=True)
 
-    # TODO: 월별 예산을 읽는다.
     def read_budgets(self) -> dict[str, int]:
-        pass
+        budgets = {}
+        with self.path.open("r", encoding="utf-8") as file:
+            for line in file:
+                record = json.loads(line)
+                budgets[record["month"]] = record["amount"]
+        return budgets
 
-    # TODO: 월별 예산을 안전하게 저장한다.
     def save_budgets(self, budgets: dict[str, int]) -> None:
-        pass
+        temporary_path = self.path.with_suffix(".tmp")
+        with temporary_path.open("w", encoding="utf-8") as file:
+            for month, amount in sorted(budgets.items()):
+                record = {"month": month, "amount": amount}
+                file.write(json.dumps(record, ensure_ascii=False) + "\n")
+        temporary_path.replace(self.path)

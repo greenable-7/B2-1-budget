@@ -1,4 +1,6 @@
+import calendar
 import heapq
+import re
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
@@ -49,21 +51,127 @@ class BudgetService:
         for _, transaction in latest_transactions:
             yield transaction
 
-    # TODO: 기간·카테고리·타입·메모·태그로 스트리밍 검색하고 최신순으로 제공한다.
-    def search_transactions(self, start_date: str | None = None, end_date: str | None = None, category: str | None = None, transaction_type: str | None = None, query: str | None = None, tag: str | None = None) -> Iterator[Transaction]:
-        pass
+    def search_transactions(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        category: str | None = None,
+        transaction_type: str | None = None,
+        query: str | None = None,
+        tag: str | None = None,
+    ) -> Iterator[Transaction]:
+        self._validate_search_date(start_date, "--from")
+        self._validate_search_date(end_date, "--to")
+        if start_date is not None and end_date is not None and start_date > end_date:
+            raise ValueError("--from 날짜는 --to 날짜보다 늦을 수 없습니다.")
+        if transaction_type is not None and transaction_type not in {"income", "expense"}:
+            raise ValueError("--type은 income 또는 expense여야 합니다.")
 
-    # TODO: 월별 합계·잔액·지출 TOP N·예산 사용률·초과 여부와 빈 결과를 제공한다.
+        normalized_query = query.casefold() if query is not None else None
+
+        def matches(transaction: Transaction) -> bool:
+            return (
+                (start_date is None or transaction.date >= start_date)
+                and (end_date is None or transaction.date <= end_date)
+                and (category is None or transaction.category == category)
+                and (transaction_type is None or transaction.transaction_type == transaction_type)
+                and (normalized_query is None or normalized_query in transaction.memo.casefold())
+                and (tag is None or tag in transaction.tags)
+            )
+
+        matching_transactions = (
+            (index, transaction)
+            for index, transaction in enumerate(self.repository.iter_transactions())
+            if matches(transaction)
+        )
+        for _, transaction in sorted(
+            matching_transactions,
+            key=lambda item: (item[1].date, item[0]),
+            reverse=True,
+        ):
+            yield transaction
+
+    @staticmethod
+    def _validate_search_date(value: str | None, option_name: str) -> None:
+        if value is None:
+            return
+        match = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", value)
+        if match is None:
+            raise ValueError(f"{option_name}은 실제 존재하는 YYYY-MM-DD 날짜여야 합니다.")
+
+        year, month, day = (int(part) for part in match.groups())
+        is_valid = (
+            1 <= year <= 9999
+            and 1 <= month <= 12
+            and 1 <= day <= calendar.monthrange(year, month)[1]
+        )
+        if not is_valid:
+            raise ValueError(f"{option_name}은 실제 존재하는 YYYY-MM-DD 날짜여야 합니다.")
+
     def summarize_month(self, month: str, top: int = 5) -> dict[str, object]:
-        pass
+        self._validate_month(month)
+        if type(top) is not int or top <= 0:
+            raise ValueError("--top은 0보다 큰 정수여야 합니다. 예: --top 5")
 
-    # TODO: 월과 양수 정수 금액을 검증해 예산을 설정한다.
+        total_income = 0
+        total_expense = 0
+        transaction_count = 0
+        expenses_by_category: dict[str, int] = {}
+
+        for transaction in self.repository.iter_transactions():
+            if not transaction.date.startswith(f"{month}-"):
+                continue
+
+            transaction_count += 1
+            if transaction.transaction_type == "income":
+                total_income += transaction.amount
+            else:
+                total_expense += transaction.amount
+                expenses_by_category[transaction.category] = (
+                    expenses_by_category.get(transaction.category, 0) + transaction.amount
+                )
+
+        top_expense_categories = sorted(
+            expenses_by_category.items(),
+            key=lambda item: (-item[1], item[0]),
+        )[:top]
+        budget = self.get_budget(month)
+        budget_usage_rate = total_expense / budget * 100 if budget is not None else None
+
+        return {
+            "month": month,
+            "transaction_count": transaction_count,
+            "total_income": total_income,
+            "total_expense": total_expense,
+            "balance": total_income - total_expense,
+            "top_expense_categories": top_expense_categories,
+            "budget": budget,
+            "budget_usage_rate": budget_usage_rate,
+            "is_over_budget": total_expense > budget if budget is not None else None,
+        }
+
     def set_budget(self, month: str, amount: int) -> None:
-        pass
+        self._validate_month(month)
+        if type(amount) is not int or amount <= 0:
+            raise ValueError("--amount는 0보다 큰 정수여야 합니다.")
 
-    # TODO: 해당 월의 예산을 조회하고 미설정 상태를 구분한다.
+        budgets = self.budgets.read_budgets()
+        budgets[month] = amount
+        self.budgets.save_budgets(budgets)
+
     def get_budget(self, month: str) -> int | None:
-        pass
+        self._validate_month(month)
+        return self.budgets.read_budgets().get(month)
+
+    @staticmethod
+    def _validate_month(month: str) -> None:
+        match = re.fullmatch(r"(\d{4})-(\d{2})", month)
+        if match is None:
+            raise ValueError("--month는 YYYY-MM 형식이어야 합니다. 예: 2026-09")
+
+        year, month_number = (int(part) for part in match.groups())
+        if not 1 <= year <= 9999 or not 1 <= month_number <= 12:
+            raise ValueError("--month는 실제 존재하는 YYYY-MM 형식이어야 합니다. 예: 2026-09")
 
     def add_category(self, name: str) -> None:
         name = name.strip()

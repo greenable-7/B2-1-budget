@@ -5,11 +5,11 @@
 
 ## 현재 단계
 
-`category add/list/remove`, 대화형 `add`, `list --limit`을 구현했습니다.
+`category add/list/remove`, 대화형 `add`, `list --limit`, `search`, `summary`, `budget set/show`를 구현했습니다.
 거래와 카테고리는 `--data-dir` 폴더의 JSONL 파일에 저장됩니다.
 사용 중인 카테고리는 삭제할 수 없고, 잘못된 거래 입력은 오류 메시지와 종료 코드 1로 처리합니다.
 `list`는 거래 파일을 한 줄씩 읽고 필요한 개수만 메모리에 유지해 날짜 최신순으로 출력합니다.
-`search`, `summary`, `budget`, `update`, `delete`, `import`, `export`는 아직 미구현입니다.
+`update`, `delete`, `import`, `export`는 아직 미구현입니다.
 `Transaction`은 일반 클래스로 구현되어 있으며 dataclass는 적용하지 않았습니다.
 
 프로젝트 루트에서 실행합니다.
@@ -18,7 +18,7 @@
 python -m budget_app
 ```
 
-현재 사용 가능한 명령은 `add`, `list`, `category add/list/remove`입니다.
+현재 사용 가능한 명령은 `add`, `list`, `search`, `summary`, `budget set/show`, `category add/list/remove`입니다.
 `--data-dir`는 명령 앞에 둡니다. Python 3.10 이상이 필요합니다.
 
 처음 사용할 때는 `python -m budget_app category add`로 카테고리를 등록한 뒤
@@ -56,9 +56,9 @@ service는 검증·비즈니스 규칙, decorator는 공통 오류 처리를 담
 | --- | --- |
 | add | 구현: 대화형 거래 입력, 검증, 저장, 고유 id 출력 |
 | list | 구현: 날짜 최신순 목록, 기본 20건 및 --limit, 스트리밍 조회 |
-| search | 기간·카테고리·타입·메모·태그 검색, 최신순 스트리밍 결과 |
-| summary | 월별 수입·지출·잔액, 지출 TOP N, 예산 사용률·초과 경고, 데이터 없음 표시 |
-| budget | 월별 예산 설정·조회 및 영구 저장 |
+| search | 구현: 포함 기간·카테고리·타입·메모 키워드·태그의 AND 검색, 최신순 결과 |
+| summary | 구현: 월별 수입·지출·잔액, 지출 TOP N, 예산 사용률·초과 경고, 데이터 없음 표시 |
+| budget | 구현: 월별 예산 설정·조회, 같은 달 갱신 및 영구 저장 |
 | category | 구현: 카테고리 추가·조회·삭제, 사용 중인 카테고리 삭제 차단 |
 | update | 옵션으로 지정한 필드 수정, 없는 id 처리 |
 | delete | id 기반 삭제, 없는 id 처리 |

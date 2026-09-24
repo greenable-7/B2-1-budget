@@ -1,5 +1,7 @@
 import argparse
+from collections.abc import Iterable
 from pathlib import Path
+from typing import cast
 
 from .decorator import handle_cli_errors
 from .model import Transaction
@@ -15,6 +17,24 @@ def run() -> None:
     subparsers.add_parser("add", help="거래를 입력하고 저장")
     list_parser = subparsers.add_parser("list", help="거래를 최신순으로 조회")
     list_parser.add_argument("--limit", type=int, default=20, help="출력할 최대 거래 수 (기본값: 20)")
+    search_parser = subparsers.add_parser("search", help="조건에 맞는 거래를 최신순으로 검색")
+    search_parser.add_argument("--from", dest="start_date", help="검색 시작일 (YYYY-MM-DD, 포함)")
+    search_parser.add_argument("--to", dest="end_date", help="검색 종료일 (YYYY-MM-DD, 포함)")
+    search_parser.add_argument("--category", help="카테고리")
+    search_parser.add_argument("--type", dest="transaction_type", help="거래 타입 (income/expense)")
+    search_parser.add_argument("--q", dest="query", help="메모에 포함된 검색어")
+    search_parser.add_argument("--tag", help="태그")
+    summary_parser = subparsers.add_parser("summary", help="월별 수입과 지출 요약")
+    summary_parser.add_argument("--month", required=True, help="요약할 월 (YYYY-MM)")
+    summary_parser.add_argument("--top", type=int, default=5, help="표시할 지출 카테고리 수 (기본값: 5)")
+    budget_parser = subparsers.add_parser("budget", help="월별 예산을 설정하거나 조회")
+    budget_parser.set_defaults(amount=None)
+    budget_subparsers = budget_parser.add_subparsers(dest="budget_command", required=True)
+    budget_set_parser = budget_subparsers.add_parser("set", help="월별 예산 설정")
+    budget_set_parser.add_argument("--month", required=True, help="예산 적용 월 (YYYY-MM)")
+    budget_set_parser.add_argument("--amount", type=int, required=True, help="예산 금액")
+    budget_show_parser = budget_subparsers.add_parser("show", help="월별 예산 조회")
+    budget_show_parser.add_argument("--month", required=True, help="조회할 월 (YYYY-MM)")
     category_parser = subparsers.add_parser("category")
     category_subparsers = category_parser.add_subparsers(dest="category_command", required=True)
     category_subparsers.add_parser("add")
@@ -31,6 +51,25 @@ def run() -> None:
         handle_add(service)
     elif args.command == "list":
         handle_list(service, args.limit)
+    elif args.command == "search":
+        handle_search(
+            service,
+            start_date=args.start_date,
+            end_date=args.end_date,
+            category=args.category,
+            transaction_type=args.transaction_type,
+            query=args.query,
+            tag=args.tag,
+        )
+    elif args.command == "summary":
+        handle_summary(service, month=args.month, top=args.top)
+    elif args.command == "budget":
+        handle_budget(
+            service,
+            budget_command=args.budget_command,
+            month=args.month,
+            amount=args.amount,
+        )
     elif args.command == "category":
         handle_category(service, args.category_command)
 
@@ -57,8 +96,12 @@ def handle_add(service: BudgetService) -> None:
     print(f"거래 저장 완료: {service.add_transaction(transaction)}")
 
 def handle_list(service: BudgetService, limit: int) -> None:
+    print_transactions(service.list_transactions(limit), "거래 내역이 없습니다.")
+
+
+def print_transactions(transactions: Iterable[Transaction], empty_message: str) -> None:
     has_transactions = False
-    for transaction in service.list_transactions(limit):
+    for transaction in transactions:
         has_transactions = True
         tags = ",".join(transaction.tags)
         print(
@@ -68,19 +111,75 @@ def handle_list(service: BudgetService, limit: int) -> None:
         )
 
     if not has_transactions:
-        print("거래 내역이 없습니다.")
+        print(empty_message)
 
-# TODO: --from, --to, --category, --type, --q, --tag 옵션으로 검색한다.
-def handle_search() -> None:
-    pass
 
-# TODO: --month, --top 옵션으로 월별 요약을 요청한다.
-def handle_summary() -> None:
-    pass
+def handle_search(
+    service: BudgetService,
+    start_date: str | None,
+    end_date: str | None,
+    category: str | None,
+    transaction_type: str | None,
+    query: str | None,
+    tag: str | None,
+) -> None:
+    transactions = service.search_transactions(
+        start_date=start_date,
+        end_date=end_date,
+        category=category,
+        transaction_type=transaction_type,
+        query=query,
+        tag=tag,
+    )
+    print_transactions(transactions, "검색 결과가 없습니다.")
 
-# TODO: budget set --month --amount와 budget show --month를 연결한다.
-def handle_budget() -> None:
-    pass
+def handle_summary(service: BudgetService, month: str, top: int) -> None:
+    summary = service.summarize_month(month, top)
+    if summary["transaction_count"] == 0:
+        print(f"{month} 거래 내역이 없습니다.")
+        return
+
+    print(f"월 요약: {month}")
+    print(f"수입 합계: {summary['total_income']}")
+    print(f"지출 합계: {summary['total_expense']}")
+    print(f"잔액: {summary['balance']}")
+
+    top_categories = cast(list[tuple[str, int]], summary["top_expense_categories"])
+    if top_categories:
+        print(f"지출 카테고리 TOP {top}:")
+        for rank, (category, amount) in enumerate(top_categories, start=1):
+            print(f"{rank}. {category} | {amount}")
+    else:
+        print("지출 내역이 없습니다.")
+
+    budget = cast(int | None, summary["budget"])
+    if budget is None:
+        print("예산: 미설정")
+        return
+
+    usage_rate = cast(float, summary["budget_usage_rate"])
+    is_over_budget = cast(bool, summary["is_over_budget"])
+    print(f"예산: {budget}")
+    print(f"예산 사용률: {usage_rate:.2f}%")
+    print(f"예산 상태: {'초과' if is_over_budget else '정상'}")
+
+def handle_budget(
+    service: BudgetService,
+    budget_command: str,
+    month: str,
+    amount: int | None,
+) -> None:
+    if budget_command == "set":
+        if amount is None:
+            raise ValueError("budget set에는 --amount가 필요합니다.")
+        service.set_budget(month, amount)
+        print(f"예산 설정 완료: {month} | {amount}")
+    elif budget_command == "show":
+        saved_amount = service.get_budget(month)
+        if saved_amount is None:
+            print(f"{month} 예산이 설정되지 않았습니다.")
+        else:
+            print(f"{month} 예산: {saved_amount}")
 
 def handle_category(service: BudgetService, category_command: str) -> None:
     if category_command == "add":
