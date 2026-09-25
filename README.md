@@ -5,11 +5,11 @@
 
 ## 현재 단계
 
-`category add/list/remove`, 대화형 `add`, `list --limit`, `search`, `summary`, `budget set/show`를 구현했습니다.
+`category add/list/remove`, 대화형 `add`, `list --limit`, `search`, `summary`, `budget set/show`, `update`를 구현했습니다.
 거래와 카테고리는 `--data-dir` 폴더의 JSONL 파일에 저장됩니다.
 사용 중인 카테고리는 삭제할 수 없고, 잘못된 거래 입력은 오류 메시지와 종료 코드 1로 처리합니다.
 `list`는 거래 파일을 한 줄씩 읽고 필요한 개수만 메모리에 유지해 날짜 최신순으로 출력합니다.
-`update`, `delete`, `import`, `export`는 아직 미구현입니다.
+`delete`, `import`, `export`는 아직 미구현입니다.
 `Transaction`은 일반 클래스로 구현되어 있으며 dataclass는 적용하지 않았습니다.
 
 프로젝트 루트에서 실행합니다.
@@ -18,7 +18,7 @@
 python -m budget_app
 ```
 
-현재 사용 가능한 명령은 `add`, `list`, `search`, `summary`, `budget set/show`, `category add/list/remove`입니다.
+현재 사용 가능한 명령은 `add`, `list`, `search`, `summary`, `budget set/show`, `category add/list/remove`, `update`입니다.
 `--data-dir`는 명령 앞에 둡니다. Python 3.10 이상이 필요합니다.
 
 처음 사용할 때는 `python -m budget_app category add`로 카테고리를 등록한 뒤
@@ -60,7 +60,7 @@ service는 검증·비즈니스 규칙, decorator는 공통 오류 처리를 담
 | summary | 구현: 월별 수입·지출·잔액, 지출 TOP N, 예산 사용률·초과 경고, 데이터 없음 표시 |
 | budget | 구현: 월별 예산 설정·조회, 같은 달 갱신 및 영구 저장 |
 | category | 구현: 카테고리 추가·조회·삭제, 사용 중인 카테고리 삭제 차단 |
-| update | 옵션으로 지정한 필드 수정, 없는 id 처리 |
+| update | 구현: 옵션으로 지정한 필드만 수정, 검증 실패·없는 id에서 원본 보존 |
 | delete | id 기반 삭제, 없는 id 처리 |
 | import | CSV 가져오기, 검증 및 처리 건수 출력 |
 | export | 월 또는 시작·종료일 조건으로 CSV 내보내기, 처리 건수 출력 |
@@ -96,7 +96,7 @@ service는 검증·비즈니스 규칙, decorator는 공통 오류 처리를 담
 | memo | str, 선택 입력, 기본 빈 문자열 |
 | tags | list[str], 선택 입력, 기본 빈 목록 |
 
-## 최종 명령 예시 — add/list/category는 현재 사용 가능
+## 최종 명령 예시
 
 옵션은 `--`로 통일합니다. 현재 구현된 명령은 `--help`를 제공합니다.
 `add`는 대화형, `update`는 **옵션 방식**으로 고정합니다.

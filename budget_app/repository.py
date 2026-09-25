@@ -30,7 +30,28 @@ class JsonlRepository:
 
 
     def append_transaction(self, transaction: Transaction) -> None:
-        record = {
+        record = self._transaction_record(transaction)
+        line = json.dumps(record, ensure_ascii=False)
+        with self.path.open("a", encoding="utf-8") as file:
+            file.write(line + "\n")
+
+
+
+
+    def rewrite_transactions(self, transactions: Iterable[Transaction]) -> None:
+        temporary_path = self.path.with_suffix(".tmp")
+        try:
+            with temporary_path.open("w", encoding="utf-8") as file:
+                for transaction in transactions:
+                    record = self._transaction_record(transaction)
+                    file.write(json.dumps(record, ensure_ascii=False) + "\n")
+            temporary_path.replace(self.path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _transaction_record(transaction: Transaction) -> dict[str, object]:
+        return {
             "id": transaction.transaction_id,
             "type": transaction.transaction_type,
             "date": transaction.date,
@@ -39,16 +60,6 @@ class JsonlRepository:
             "memo": transaction.memo,
             "tags": transaction.tags,
         }
-        line = json.dumps(record, ensure_ascii=False)
-        with self.path.open("a", encoding="utf-8") as file:
-            file.write(line + "\n")
-
-
-
-
-    # TODO: update/delete 결과를 임시 파일에 쓰고 원자적으로 교체한다.
-    def rewrite_transactions(self, transactions: Iterable[Transaction]) -> None:
-        pass
 
 
 class CategoryStore:

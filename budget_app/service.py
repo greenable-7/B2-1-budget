@@ -205,9 +205,53 @@ class BudgetService:
 
 
 
-    # TODO: id와 수정 필드를 검증하고 안전하게 재작성하며 없는 id를 처리한다.
     def update_transaction(self, transaction_id: str, changes: dict[str, object]) -> None:
-        pass
+        transaction_id = transaction_id.strip()
+        if not transaction_id:
+            raise ValueError("--id를 입력해 주세요.")
+        if not changes:
+            raise ValueError("수정할 옵션을 하나 이상 입력해 주세요.")
+
+        allowed_fields = {"date", "transaction_type", "category", "amount", "memo", "tags"}
+        unknown_fields = set(changes) - allowed_fields
+        if unknown_fields:
+            names = ", ".join(sorted(unknown_fields))
+            raise ValueError(f"수정할 수 없는 필드입니다: {names}")
+
+        for field in ("date", "transaction_type", "category", "memo"):
+            if field in changes and type(changes[field]) is not str:
+                raise ValueError(f"{field} 값은 문자열이어야 합니다.")
+        if "tags" in changes:
+            tags = changes["tags"]
+            if type(tags) is not list or any(type(tag) is not str for tag in tags):
+                raise ValueError("tags 값은 문자열 목록이어야 합니다.")
+
+        def updated_transactions() -> Iterator[Transaction]:
+            found = False
+            for transaction in self.repository.iter_transactions():
+                if transaction.transaction_id != transaction_id:
+                    yield transaction
+                    continue
+
+                found = True
+                updated_transaction = Transaction(
+                    transaction_id=transaction.transaction_id,
+                    transaction_type=transaction.transaction_type,
+                    date=transaction.date,
+                    amount=transaction.amount,
+                    category=transaction.category,
+                    memo=transaction.memo,
+                    tags=transaction.tags.copy(),
+                )
+                for field, value in changes.items():
+                    setattr(updated_transaction, field, value)
+                self.validate_transaction(updated_transaction)
+                yield updated_transaction
+
+            if not found:
+                raise ValueError(f"거래 ID를 찾을 수 없습니다: {transaction_id}")
+
+        self.repository.rewrite_transactions(updated_transactions())
 
     # TODO: id에 해당하는 거래를 안전하게 삭제하고 없는 id를 처리한다.
     def delete_transaction(self, transaction_id: str) -> None:

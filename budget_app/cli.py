@@ -35,6 +35,14 @@ def run() -> None:
     budget_set_parser.add_argument("--amount", type=int, required=True, help="예산 금액")
     budget_show_parser = budget_subparsers.add_parser("show", help="월별 예산 조회")
     budget_show_parser.add_argument("--month", required=True, help="조회할 월 (YYYY-MM)")
+    update_parser = subparsers.add_parser("update", help="거래 ID로 원하는 항목만 수정")
+    update_parser.add_argument("--id", required=True, help="수정할 거래 ID")
+    update_parser.add_argument("--date", help="변경할 날짜 (YYYY-MM-DD)")
+    update_parser.add_argument("--type", dest="transaction_type", help="변경할 거래 타입")
+    update_parser.add_argument("--category", help="변경할 카테고리")
+    update_parser.add_argument("--amount", type=int, help="변경할 금액")
+    update_parser.add_argument("--memo", help="변경할 메모")
+    update_parser.add_argument("--tags", help="변경할 태그 (쉼표 구분)")
     category_parser = subparsers.add_parser("category")
     category_subparsers = category_parser.add_subparsers(dest="category_command", required=True)
     category_subparsers.add_parser("add")
@@ -69,6 +77,17 @@ def run() -> None:
             budget_command=args.budget_command,
             month=args.month,
             amount=args.amount,
+        )
+    elif args.command == "update":
+        handle_update(
+            service,
+            transaction_id=args.id,
+            date=args.date,
+            transaction_type=args.transaction_type,
+            category=args.category,
+            amount=args.amount,
+            memo=args.memo,
+            tags=args.tags,
         )
     elif args.command == "category":
         handle_category(service, args.category_command)
@@ -196,9 +215,32 @@ def handle_category(service: BudgetService, category_command: str) -> None:
         print(f"카테고리 삭제: {name}")
 
 
-# TODO: --id와 --date, --type, --category, --amount, --memo, --tags로 수정한다.
-def handle_update() -> None:
-    pass
+def handle_update(
+    service: BudgetService,
+    transaction_id: str,
+    date: str | None,
+    transaction_type: str | None,
+    category: str | None,
+    amount: int | None,
+    memo: str | None,
+    tags: str | None,
+) -> None:
+    changes: dict[str, object] = {}
+    if date is not None:
+        changes["date"] = date
+    if transaction_type is not None:
+        changes["transaction_type"] = transaction_type
+    if category is not None:
+        changes["category"] = category
+    if amount is not None:
+        changes["amount"] = amount
+    if memo is not None:
+        changes["memo"] = memo
+    if tags is not None:
+        changes["tags"] = [tag.strip() for tag in tags.split(",") if tag.strip()]
+
+    service.update_transaction(transaction_id, changes)
+    print(f"거래 수정 완료: {transaction_id}")
 
 # TODO: --id 옵션으로 거래 삭제를 요청한다.
 def handle_delete() -> None:
