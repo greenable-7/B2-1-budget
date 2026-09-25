@@ -43,6 +43,8 @@ def run() -> None:
     update_parser.add_argument("--amount", type=int, help="변경할 금액")
     update_parser.add_argument("--memo", help="변경할 메모")
     update_parser.add_argument("--tags", help="변경할 태그 (쉼표 구분)")
+    delete_parser = subparsers.add_parser("delete", help="거래 ID로 삭제")
+    delete_parser.add_argument("--id", required=True, help="삭제할 거래 ID")
     category_parser = subparsers.add_parser("category")
     category_subparsers = category_parser.add_subparsers(dest="category_command", required=True)
     category_subparsers.add_parser("add")
@@ -89,6 +91,8 @@ def run() -> None:
             memo=args.memo,
             tags=args.tags,
         )
+    elif args.command == "delete":
+        handle_delete(service, transaction_id=args.id)
     elif args.command == "category":
         handle_category(service, args.category_command)
 
@@ -242,9 +246,9 @@ def handle_update(
     service.update_transaction(transaction_id, changes)
     print(f"거래 수정 완료: {transaction_id}")
 
-# TODO: --id 옵션으로 거래 삭제를 요청한다.
-def handle_delete() -> None:
-    pass
+def handle_delete(service: BudgetService, transaction_id: str) -> None:
+    service.delete_transaction(transaction_id)
+    print(f"거래 삭제 완료: {transaction_id}")
 
 def handle_import() -> None:
     parser = argparse.ArgumentParser(prog="budget import")

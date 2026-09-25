@@ -253,9 +253,23 @@ class BudgetService:
 
         self.repository.rewrite_transactions(updated_transactions())
 
-    # TODO: id에 해당하는 거래를 안전하게 삭제하고 없는 id를 처리한다.
     def delete_transaction(self, transaction_id: str) -> None:
-        pass
+        transaction_id = transaction_id.strip()
+        if not transaction_id:
+            raise ValueError("--id를 입력해 주세요.")
+
+        def remaining_transactions() -> Iterator[Transaction]:
+            found = False
+            for transaction in self.repository.iter_transactions():
+                if transaction.transaction_id == transaction_id:
+                    found = True
+                    continue
+                yield transaction
+
+            if not found:
+                raise ValueError(f"거래 ID를 찾을 수 없습니다: {transaction_id}")
+
+        self.repository.rewrite_transactions(remaining_transactions())
 
     # TODO: CSV 행을 검증해 가져오고 성공·건너뜀 건수를 제공한다.
     def import_csv(self, source: Path) -> tuple[int, int]:
