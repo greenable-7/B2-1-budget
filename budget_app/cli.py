@@ -45,6 +45,13 @@ def run() -> None:
     update_parser.add_argument("--tags", help="변경할 태그 (쉼표 구분)")
     delete_parser = subparsers.add_parser("delete", help="거래 ID로 삭제")
     delete_parser.add_argument("--id", required=True, help="삭제할 거래 ID")
+    import_parser = subparsers.add_parser("import", help="CSV에서 거래 가져오기")
+    import_parser.add_argument("--from", dest="source", type=Path, required=True, help="가져올 CSV 파일")
+    export_parser = subparsers.add_parser("export", help="거래를 CSV로 내보내기")
+    export_parser.add_argument("--out", type=Path, required=True, help="저장할 CSV 파일")
+    export_parser.add_argument("--month", help="내보낼 월 (YYYY-MM)")
+    export_parser.add_argument("--from", dest="start_date", help="시작일 (YYYY-MM-DD, 포함)")
+    export_parser.add_argument("--to", dest="end_date", help="종료일 (YYYY-MM-DD, 포함)")
     category_parser = subparsers.add_parser("category")
     category_subparsers = category_parser.add_subparsers(dest="category_command", required=True)
     category_subparsers.add_parser("add")
@@ -93,6 +100,16 @@ def run() -> None:
         )
     elif args.command == "delete":
         handle_delete(service, transaction_id=args.id)
+    elif args.command == "import":
+        handle_import(service, source=args.source)
+    elif args.command == "export":
+        handle_export(
+            service,
+            destination=args.out,
+            month=args.month,
+            start_date=args.start_date,
+            end_date=args.end_date,
+        )
     elif args.command == "category":
         handle_category(service, args.category_command)
 
@@ -250,20 +267,21 @@ def handle_delete(service: BudgetService, transaction_id: str) -> None:
     service.delete_transaction(transaction_id)
     print(f"거래 삭제 완료: {transaction_id}")
 
-def handle_import() -> None:
-    parser = argparse.ArgumentParser(prog="budget import")
-    parser.add_argument("--from", dest="source", type=Path, required=True)
-    args = parser.parse_args()
-
-    data_dir = Path("data")
-    service = BudgetService(
-        JsonlRepository(data_dir),
-        CategoryStore(data_dir),
-        BudgetStore(data_dir),
-    )
-    imported, skipped = service.import_csv(args.source)
+def handle_import(service: BudgetService, source: Path) -> None:
+    imported, skipped = service.import_csv(source)
     print(f"성공: {imported}건, 건너뜀: {skipped}건")
 
-# TODO: --out과 --month 또는 --from/--to 조건으로 CSV를 내보낸다.
-def handle_export() -> None:
-    pass
+def handle_export(
+    service: BudgetService,
+    destination: Path,
+    month: str | None,
+    start_date: str | None,
+    end_date: str | None,
+) -> None:
+    exported = service.export_csv(
+        destination,
+        month=month,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    print(f"내보내기 완료: {exported}건 | {destination}")

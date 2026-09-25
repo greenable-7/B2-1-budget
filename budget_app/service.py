@@ -1,4 +1,5 @@
 import calendar
+import csv
 import heapq
 import re
 from collections.abc import Iterator
@@ -8,6 +9,9 @@ import uuid
 
 from .model import Transaction
 from .repository import BudgetStore, CategoryStore, JsonlRepository
+
+
+CSV_FIELDS = ["date", "type", "category", "amount", "memo", "tags"]
 
 
 class BudgetService:
@@ -271,10 +275,81 @@ class BudgetService:
 
         self.repository.rewrite_transactions(remaining_transactions())
 
-    # TODO: CSV 행을 검증해 가져오고 성공·건너뜀 건수를 제공한다.
     def import_csv(self, source: Path) -> tuple[int, int]:
-        pass
+        imported = 0
+        skipped = 0
 
-    # TODO: 월 또는 시작·종료일 조건을 검증해 CSV를 내보내고 처리 건수를 제공한다.
-    def export_csv(self, destination: Path, month: str | None = None, start_date: str | None = None, end_date: str | None = None) -> int:
-        pass
+        with source.open("r", encoding="utf-8-sig", newline="") as file:
+            reader = csv.DictReader(file)
+            if reader.fieldnames != CSV_FIELDS:
+                expected = ",".join(CSV_FIELDS)
+                raise ValueError(f"CSV 헤더는 다음 순서여야 합니다: {expected}")
+
+            for row in reader:
+                if None in row:
+                    skipped += 1
+                    continue
+                try:
+                    amount = int(row["amount"].strip())
+                    transaction = Transaction(
+                        transaction_id="",
+                        transaction_type=row["type"].strip(),
+                        date=row["date"].strip(),
+                        amount=amount,
+                        category=row["category"].strip(),
+                        memo=row["memo"].strip(),
+                        tags=[tag.strip() for tag in row["tags"].split(",") if tag.strip()],
+                    )
+                    self.add_transaction(transaction)
+                except (AttributeError, TypeError, ValueError):
+                    skipped += 1
+                else:
+                    imported += 1
+
+        return imported, skipped
+
+    def export_csv(
+        self,
+        destination: Path,
+        month: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> int:
+        if month is not None and (start_date is not None or end_date is not None):
+            raise ValueError("--month와 --from/--to는 함께 사용할 수 없습니다.")
+        if month is None and start_date is None and end_date is None:
+            raise ValueError("--month 또는 --from과 --to를 입력해 주세요.")
+
+        if month is not None:
+            self._validate_month(month)
+            year, month_number = (int(part) for part in month.split("-"))
+            last_day = calendar.monthrange(year, month_number)[1]
+            start_date = f"{month}-01"
+            end_date = f"{month}-{last_day:02d}"
+        else:
+            if start_date is None or end_date is None:
+                raise ValueError("기간 내보내기에는 --from과 --to가 모두 필요합니다.")
+            self._validate_search_date(start_date, "--from")
+            self._validate_search_date(end_date, "--to")
+            if start_date > end_date:
+                raise ValueError("--from 날짜는 --to 날짜보다 늦을 수 없습니다.")
+
+        transactions = self.search_transactions(start_date=start_date, end_date=end_date)
+        exported = 0
+        with destination.open("w", encoding="utf-8", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=CSV_FIELDS)
+            writer.writeheader()
+            for transaction in transactions:
+                writer.writerow(
+                    {
+                        "date": transaction.date,
+                        "type": transaction.transaction_type,
+                        "category": transaction.category,
+                        "amount": transaction.amount,
+                        "memo": transaction.memo,
+                        "tags": ",".join(transaction.tags),
+                    }
+                )
+                exported += 1
+
+        return exported

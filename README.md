@@ -5,11 +5,11 @@
 
 ## 현재 단계
 
-`category add/list/remove`, 대화형 `add`, `list --limit`, `search`, `summary`, `budget set/show`, `update`, `delete`를 구현했습니다.
+`category add/list/remove`, 대화형 `add`, `list --limit`, `search`, `summary`, `budget set/show`,
+`update`, `delete`, `import`, `export`를 구현했습니다.
 거래와 카테고리는 `--data-dir` 폴더의 JSONL 파일에 저장됩니다.
 사용 중인 카테고리는 삭제할 수 없고, 잘못된 거래 입력은 오류 메시지와 종료 코드 1로 처리합니다.
 `list`는 거래 파일을 한 줄씩 읽고 필요한 개수만 메모리에 유지해 날짜 최신순으로 출력합니다.
-`import`, `export`는 아직 미구현입니다.
 `Transaction`은 일반 클래스로 구현되어 있으며 dataclass는 적용하지 않았습니다.
 
 프로젝트 루트에서 실행합니다.
@@ -18,7 +18,7 @@
 python -m budget_app
 ```
 
-현재 사용 가능한 명령은 `add`, `list`, `search`, `summary`, `budget set/show`, `category add/list/remove`, `update`, `delete`입니다.
+계획한 모든 명령을 사용할 수 있습니다.
 `--data-dir`는 명령 앞에 둡니다. Python 3.10 이상이 필요합니다.
 
 처음 사용할 때는 `python -m budget_app category add`로 카테고리를 등록한 뒤
@@ -62,25 +62,25 @@ service는 검증·비즈니스 규칙, decorator는 공통 오류 처리를 담
 | category | 구현: 카테고리 추가·조회·삭제, 사용 중인 카테고리 삭제 차단 |
 | update | 구현: 옵션으로 지정한 필드만 수정, 검증 실패·없는 id에서 원본 보존 |
 | delete | 구현: id 기반 삭제, 없는 id에서 원본 보존 |
-| import | CSV 가져오기, 검증 및 처리 건수 출력 |
-| export | 월 또는 시작·종료일 조건으로 CSV 내보내기, 처리 건수 출력 |
+| import | 구현: CSV 가져오기, 행 검증, 새 ID 생성 및 성공·건너뜀 건수 출력 |
+| export | 구현: 월 또는 시작·종료일 조건으로 CSV 내보내기, 처리 건수 출력 |
 
 ## 저장 형식
 
 기본 경로는 프로젝트 루트에서 실행할 때의 `./data`이며, 전역 `--data-dir`로 변경할 수 있습니다.
-거래와 카테고리 파일은 명령 실행 시 생성됩니다. 예산 파일은 아직 생성하지 않습니다.
+거래·카테고리·예산 파일은 명령 실행 시 생성됩니다.
 
 | 파일 | 한 줄에 저장할 JSON 객체 |
 | --- | --- |
 | data/transactions.jsonl | 거래 한 건: id, type, date, amount, category, memo, tags |
 | data/categories.jsonl | 카테고리 한 건: name |
-| data/budgets.jsonl | 예정: 월 예산 한 건: month, amount |
+| data/budgets.jsonl | 월 예산 한 건: month, amount |
 
-구현된 두 파일은 UTF-8 JSONL로 저장하며 한 줄에 JSON 객체 하나를 기록합니다.
+세 데이터 파일은 UTF-8 JSONL로 저장하며 한 줄에 JSON 객체 하나를 기록합니다.
 전체 파일을 JSON 배열로 감싸지 않습니다. CSV는 가져오기·내보내기 형식으로만 사용합니다.
 거래 추가 시 카테고리가 등록되지 않았다면 `category add`를 안내합니다.
-거래 읽기는 `yield` 기반 스트리밍, 수정·삭제는 임시 파일 작성 후 원자적 교체를 계획합니다.
-최신순 출력과 스트리밍을 함께 만족할 읽기·정렬 전략은 추후 구현 단계에서 설계합니다.
+거래 읽기는 `yield` 기반 스트리밍이며, 수정·삭제는 임시 파일 작성 후 원본을 교체합니다.
+목록은 최신 N건만 메모리에 유지하고, 검색은 조건을 통과한 거래만 최신순으로 정렬합니다.
 
 ## Transaction 필드
 
@@ -120,12 +120,11 @@ python -m budget_app export --out output.csv --month 2026-09
 python -m budget_app export --out output.csv --from 2026-09-01 --to 2026-09-30
 ```
 
-`budget show`는 과제의 예산 조회를 위한 프로젝트 내 예정 명령입니다.
 `export`는 월 조건 또는 시작일·종료일 조건이 필수입니다.
 현재 구현된 명령에서 정상 종료 코드는 0이고, 검증·파일 오류는 메시지를 출력한 뒤 1로 종료합니다.
 공통 오류 데코레이터는 CLI 메인 진입 함수 `run()`에 한 번만 적용했습니다.
 
-## import/export CSV 최소 스키마 — 미구현
+## import/export CSV 스키마
 
 UTF-8, 헤더 포함이며 다음 열을 사용합니다. 선택 항목은 빈 값으로 둘 수 있습니다.
 
@@ -143,5 +142,6 @@ date,type,category,amount,memo,tags
 2026-09-16,expense,food,12000,점심,"meal,lunch"
 ```
 
-쉼표가 포함된 필드는 CSV 따옴표 규칙에 따라 처리할 예정입니다.
-CSV에는 id 열이 없으므로 가져올 때 고유 id를 생성할 예정입니다.
+쉼표가 포함된 필드는 표준 CSV 따옴표 규칙에 따라 처리합니다.
+CSV에는 id 열이 없으므로 가져올 때 고유 id를 생성합니다.
+헤더가 잘못된 파일은 가져오지 않습니다. 헤더가 정상이라면 유효한 행은 저장하고 잘못된 행은 건너뛴 뒤 각각의 건수를 출력합니다.
