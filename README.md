@@ -50,6 +50,88 @@ CLI는 입력·출력, model은 거래 구조, repository는 파일 입출력,
 service는 검증·비즈니스 규칙, decorator는 공통 오류 처리를 담당합니다.
 각 모듈의 자세한 계획은 [docs](docs/cli.md)에 설명합니다.
 
+## 프로그램 구조와 전체 흐름
+
+### 모듈 구조
+
+```mermaid
+flowchart LR
+    User["사용자"] --> Main["__main__.py<br/>프로그램 시작"]
+    Main --> CLI["cli.py<br/>명령 해석 · 입력 · 출력"]
+    Decorator["decorator.py<br/>공통 오류 처리"] -. "run()을 감쌈" .-> CLI
+
+    CLI --> Model["model.py<br/>Transaction 데이터 구조"]
+    CLI --> Service["service.py<br/>검증 · 검색 · 집계 · 업무 규칙"]
+
+    Service --> Model
+    Service --> TransactionRepo["JsonlRepository<br/>거래 읽기 · 추가 · 안전한 재작성"]
+    Service --> CategoryStore["CategoryStore<br/>카테고리 읽기 · 저장"]
+    Service --> BudgetStore["BudgetStore<br/>예산 읽기 · 저장"]
+
+    TransactionRepo <--> Transactions[("transactions.jsonl")]
+    CategoryStore <--> Categories[("categories.jsonl")]
+    BudgetStore <--> Budgets[("budgets.jsonl")]
+
+    Csv[("CSV 파일")] <--> Service
+```
+
+CLI는 사용자의 명령을 해석해 Service에 전달하고, Service는 Model과 저장소를 이용해
+검증 및 비즈니스 로직을 수행합니다. JSONL 파일 접근은 각 저장소가 담당하며,
+CSV 가져오기와 내보내기는 Service가 처리합니다.
+
+### 명령 실행 흐름
+
+```mermaid
+flowchart TD
+    Start(["python -m budget_app 실행"]) --> Wrapped["@handle_cli_errors가 run() 실행"]
+    Wrapped --> Parse["argparse로 명령과 옵션 해석"]
+    Parse -->|"올바른 명령"| Create["Repository · CategoryStore · BudgetStore 생성"]
+    Parse -->|"명령 문법 · 필수 옵션 오류"| ArgparseError["argparse가 사용법과 오류 출력"]
+    ArgparseError --> ArgparseFailure(["종료 코드 2"])
+    Create --> Inject["세 저장소를 주입해 BudgetService 생성"]
+    Inject --> Route{"입력한 명령"}
+
+    Route -->|"add · list · search<br/>summary · update · delete"| TransactionHandler["거래 CLI 핸들러"]
+    Route -->|"category add · list · remove"| CategoryHandler["카테고리 CLI 핸들러"]
+    Route -->|"budget set · show"| BudgetHandler["예산 CLI 핸들러"]
+    Route -->|"import · export"| CsvHandler["CSV CLI 핸들러"]
+
+    TransactionHandler --> Service["BudgetService<br/>입력 검증 · 검색 · 집계 · 수정 · 삭제"]
+    CategoryHandler --> Service
+    BudgetHandler --> Service
+    CsvHandler --> Service
+
+    Service <--> TransactionRepo["JsonlRepository"]
+    Service <--> CategoryRepo["CategoryStore"]
+    Service <--> BudgetRepo["BudgetStore"]
+    Service <--> CsvFile[("CSV 파일")]
+
+    TransactionRepo <--> TransactionFile[("transactions.jsonl")]
+    CategoryRepo <--> CategoryFile[("categories.jsonl")]
+    BudgetRepo <--> BudgetFile[("budgets.jsonl")]
+
+    Service --> Result["처리 결과 반환"]
+    Result --> Output["CLI가 결과 메시지 또는 목록 출력"]
+    Output --> Success(["정상 종료 · 종료 코드 0"])
+
+    TransactionHandler -. "입력 오류" .-> Error["handle_cli_errors"]
+    CategoryHandler -. "입력 오류" .-> Error
+    BudgetHandler -. "입력 오류" .-> Error
+    CsvHandler -. "입력 오류" .-> Error
+    Service -. "오류" .-> Error
+    TransactionRepo -. "오류" .-> Error
+    CategoryRepo -. "오류" .-> Error
+    BudgetRepo -. "오류" .-> Error
+    CsvFile -. "오류" .-> Error
+    Error --> ErrorOutput["stderr에 오류 메시지 출력"]
+    ErrorOutput --> Failure(["비정상 종료 · 종료 코드 1"])
+```
+
+거래 조회는 JSONL 파일을 제너레이터로 한 줄씩 읽습니다. `list`는 최신 N건만
+메모리에 유지하고, `search`는 조건을 통과한 거래만 정렬합니다. `update`와 `delete`는
+임시 파일을 먼저 완성한 뒤 원본을 교체하므로 처리 중 오류가 발생해도 기존 거래 파일을
+보존합니다.
+
 ## 기능별 진행 상태
 
 | 명령 | 구현할 기능 |
