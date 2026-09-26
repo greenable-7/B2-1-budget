@@ -31,6 +31,7 @@ budget_app/
   __init__.py
   __main__.py
   cli.py
+  handlers.py
   model.py
   repository.py
   service.py
@@ -46,8 +47,9 @@ docs/
 README.md
 ```
 
-CLI는 입력·출력, model은 거래 구조, repository는 파일 입출력,
-service는 검증·비즈니스 규칙, decorator는 공통 오류 처리를 담당합니다.
+CLI는 명령 정의와 분기를, handlers는 사용자 입력과 결과 출력을 담당합니다.
+model은 거래 구조, repository는 파일 입출력, service는 검증·비즈니스 규칙,
+decorator는 공통 오류 처리를 담당합니다.
 각 모듈의 자세한 계획은 [docs](docs/cli.md)에 설명합니다.
 
 ## 프로그램 구조와 전체 흐름
@@ -57,12 +59,14 @@ service는 검증·비즈니스 규칙, decorator는 공통 오류 처리를 담
 ```mermaid
 flowchart TD
     User["사용자"] --> Main["__main__.py<br/>프로그램 시작"]
-    Main --> CLI["cli.py<br/>명령 해석 · 입력 · 출력"]
+    Main --> CLI["cli.py<br/>명령 정의 · 옵션 해석 · 분기"]
     Decorator["decorator.py<br/>공통 오류 처리"] -. "run()을 감쌈" .-> CLI
 
-    CLI --> Model["model.py<br/>Transaction 데이터 구조"]
+    CLI --> Handlers["handlers.py<br/>사용자 입력 · 결과 출력"]
     CLI --> Service["service.py<br/>검증 · 검색 · 집계 · 업무 규칙"]
 
+    Handlers --> Model["model.py<br/>Transaction 데이터 구조"]
+    Handlers --> Service
     Service --> Model
     Service --> TransactionRepo["JsonlRepository<br/>거래 읽기 · 추가 · 안전한 재작성"]
     Service --> CategoryStore["CategoryStore<br/>카테고리 읽기 · 저장"]
@@ -75,9 +79,10 @@ flowchart TD
     Csv[("CSV 파일")] <--> Service
 ```
 
-CLI는 사용자의 명령을 해석해 Service에 전달하고, Service는 Model과 저장소를 이용해
-검증 및 비즈니스 로직을 수행합니다. JSONL 파일 접근은 각 저장소가 담당하며,
-CSV 가져오기와 내보내기는 Service가 처리합니다.
+CLI는 명령과 옵션을 해석한 뒤 알맞은 Handler를 호출합니다. Handler는 사용자 입력을
+프로그램 데이터로 바꾸고 Service의 처리 결과를 화면에 출력합니다. Service는 Model과
+저장소를 이용해 검증 및 비즈니스 로직을 수행합니다. JSONL 파일 접근은 각 저장소가
+담당하며, CSV 가져오기와 내보내기는 Service가 처리합니다.
 
 ### 명령 실행 흐름
 
@@ -91,15 +96,8 @@ flowchart TD
     Create --> Inject["세 저장소를 주입해 BudgetService 생성"]
     Inject --> Route{"입력한 명령"}
 
-    Route -->|"add · list · search<br/>summary · update · delete"| TransactionHandler["거래 CLI 핸들러"]
-    Route -->|"category add · list · remove"| CategoryHandler["카테고리 CLI 핸들러"]
-    Route -->|"budget set · show"| BudgetHandler["예산 CLI 핸들러"]
-    Route -->|"import · export"| CsvHandler["CSV CLI 핸들러"]
-
-    TransactionHandler --> Service["BudgetService<br/>입력 검증 · 검색 · 집계 · 수정 · 삭제"]
-    CategoryHandler --> Service
-    BudgetHandler --> Service
-    CsvHandler --> Service
+    Route --> HandlerInput["handlers.py<br/>선택된 handle_* 함수가 입력 준비"]
+    HandlerInput --> Service["BudgetService<br/>입력 검증 · 검색 · 집계 · 수정 · 삭제"]
 
     Service <--> TransactionRepo["JsonlRepository"]
     Service <--> CategoryRepo["CategoryStore"]
@@ -111,13 +109,11 @@ flowchart TD
     BudgetRepo <--> BudgetFile[("budgets.jsonl")]
 
     Service --> Result["처리 결과 반환"]
-    Result --> Output["CLI가 결과 메시지 또는 목록 출력"]
+    Result --> HandlerOutput["handlers.py<br/>결과 메시지 또는 목록 출력"]
+    HandlerOutput --> Output["사용자에게 결과 표시"]
     Output --> Success(["정상 종료 · 종료 코드 0"])
 
-    TransactionHandler -. "입력 오류" .-> Error["handle_cli_errors"]
-    CategoryHandler -. "입력 오류" .-> Error
-    BudgetHandler -. "입력 오류" .-> Error
-    CsvHandler -. "입력 오류" .-> Error
+    HandlerInput -. "입력 오류" .-> Error["handle_cli_errors"]
     Service -. "오류" .-> Error
     TransactionRepo -. "오류" .-> Error
     CategoryRepo -. "오류" .-> Error
