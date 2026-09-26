@@ -55,7 +55,7 @@ service는 검증·비즈니스 규칙, decorator는 공통 오류 처리를 담
 ### 모듈 구조
 
 ```mermaid
-flowchart LR
+flowchart TD
     User["사용자"] --> Main["__main__.py<br/>프로그램 시작"]
     Main --> CLI["cli.py<br/>명령 해석 · 입력 · 출력"]
     Decorator["decorator.py<br/>공통 오류 처리"] -. "run()을 감쌈" .-> CLI
