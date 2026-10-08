@@ -1,0 +1,8 @@
+{"id": "TX-e489df85be26426fa658f8f34f711811", "type": "expense", "date": "2026-09-28", "amount": 10000, "category": "food", "memo": "테스트", "tags": ["test"]}
+{"id": "TX-493b38d53a0a4a83b2fbe6e098818876", "type": "expense", "date": "2026-09-29", "amount": 12000, "category": "food", "memo": "점심", "tags": ["meal"]}
+{"id": "TX-dab2594381d94dd2b1c87fcab2a0bcc1", "type": "income", "date": "2026-09-29", "amount": 3000000, "category": "salary", "memo": "9월 월급", "tags": ["salary"]}
+{"id": "TX-019a2a02e3334e519d47435d144e0c56", "type": "expense", "date": "2026-09-29", "amount": 7000, "category": "food", "memo": "아메리카노", "tags": ["drink"]}
+{"id": "TX-45c9e4651d61455dbe892ce0d8b12fb6", "type": "expense", "date": "2026-08-30", "amount": 1111, "category": "food", "memo": "삭제연습", "tags": ["delete_practice"]}
+{"id": "TX-a475329aa80f45daacd79ee2eb5184e6", "type": "expense", "date": "2026-09-29", "amount": 7000, "category": "food", "memo": "커피", "tags": ["drink"]}
+{"id": "TX-8b4c76d6fe54453a9fcbe44ff60681ce", "type": "expense", "date": "2026-09-29", "amount": 30000, "category": "병원비", "memo": "진료비", "tags": ["clinic"]}
+{"id": "TX-5ae5cc5267d847d9912355902f42a970", "type": "expense", "date": "2026-09-29", "amount": 7000, "category": "food", "memo": "커피", "tags": ["drink"]}
